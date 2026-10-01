@@ -215,7 +215,7 @@ with st.sidebar:
         """, unsafe_allow_html=True)
         
         st.markdown("<h4 style='color:#f8fafc; font-size:0.9rem; margin-top:2rem; margin-bottom:1rem;'>INFRASTRUCTURE</h4>", unsafe_allow_html=True)
-        engine = getattr(llm_provider.primary, "model_name", "LLM")
+        engine = getattr(llm_provider.primary, "model_name", "not configured")
         db_kind = "Postgres" if os.getenv("DATABASE_URL", "").startswith("postgres") else "SQLite"
         st.markdown(f'<div class="status-badge status-online" style="width:100%; margin-bottom:0.5rem;">Engine: {engine}</div>', unsafe_allow_html=True)
         st.markdown(f'<div class="status-badge status-online" style="width:100%; margin-bottom:0.5rem;">DB: {db_kind}</div>', unsafe_allow_html=True)
@@ -235,6 +235,10 @@ with st.sidebar:
         st.rerun()
 
 # --- MAIN CHAT INTERFACE ---
+if not llm_provider.configured:
+    st.warning("No AI key configured. Add `GEMINI_API_KEY = \"...\"` under Settings → Secrets "
+               "(or set the GEMINI_API_KEY environment variable). Until then, messages go to the general specialist.")
+
 st.markdown("""
     <div style='margin-top: 2rem; margin-bottom: 2rem;'>
         <h1 style='font-size: 2.5rem; margin-bottom: 0px;'>Enterprise Intelligence</h1>
