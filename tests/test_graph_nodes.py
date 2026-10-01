@@ -153,3 +153,43 @@ def test_customer_identified_before_email_is_masked(monkeypatch):
     assert state["customer_id"] == "C1"
     assert state["customer_tier"] == "premium"
     assert "[EMAIL_MASKED]" in agent._scrub_pii("My email is alice@example.com")
+
+
+def test_keyword_route_fallback():
+    import customer_support_agent as csa
+    route = csa.CustomerSupportAgent._keyword_route
+    assert route("Where is my order?") == "order_specialist"
+    assert route("I can't log in") == "tech_specialist"
+    assert route("I want a refund for a double charge") == "billing_specialist"
+    assert route("hello") == "general_support"
+
+
+def test_email_followed_by_punctuation_is_identified():
+    import customer_support_agent as csa
+    agent = csa.CustomerSupportAgent.__new__(csa.CustomerSupportAgent)
+    seen = []
+
+    class FakeDB:
+        def get_customer_by_email(self, email):
+            seen.append(email)
+            return {"customer_id": "C1", "name": "Alice Johnson", "tier": "premium"}
+
+    agent.db = FakeDB()
+    state = {"customer_id": None}
+    agent._identify_from_raw(state, "My email is Alice@Example.com. Where is my order?")
+    assert seen == ["alice@example.com"]
+    assert state["customer_id"] == "C1"
+
+
+def test_refund_request_gets_escalation_reply(tmp_path, monkeypatch):
+    """billing_agent -> END is a fixed edge, so a refund must produce the
+    escalation message in the same turn instead of an empty reply."""
+    import customer_support_agent as csa
+    monkeypatch.setattr(csa.llm_provider, "with_structured_output", lambda schema: None)
+    agent = csa.CustomerSupportAgent(db_path=str(tmp_path / "t.db"))
+    state = agent.start_conversation()
+    for delta in agent.stream_message(state, "I want a refund for a double charge"):
+        for _node, state in delta.items():
+            pass
+    assert state["is_human_takeover"] is True
+    assert "ESCALATION" in state["messages"][-1].content
