@@ -74,6 +74,15 @@ class DualModelProvider:
                 openai_api_base=fallback_base,
                 max_tokens=2000
             )
+        elif gemini_key:
+            # Free-tier demo: fall back to the lighter Gemini model on the same
+            # key when the primary is overloaded (503) or rate limited (429).
+            self.secondary = ChatOpenAI(
+                model=os.getenv("FALLBACK_MODEL", "gemini-flash-lite-latest"),
+                openai_api_key=gemini_key,
+                openai_api_base="https://generativelanguage.googleapis.com/v1beta/openai/",
+                max_tokens=2000
+            )
         else:
             logger.warning(
                 "FALLBACK_API_KEY not set — DualModelProvider fallback is disabled; "
@@ -254,7 +263,19 @@ class CustomerSupportAgent:
             return {**state, "active_agent": decision.next_agent}
         except Exception as e:
             logger.error(f"Routing error: {e}")
-            return {**state, "active_agent": "general_support"}
+            return {**state, "active_agent": self._keyword_route(last_message.content)}
+
+    @staticmethod
+    def _keyword_route(text: str) -> str:
+        """Deterministic fallback when the LLM router is unavailable."""
+        t = text.lower()
+        if any(w in t for w in ("refund", "charge", "dispute", "bill", "invoice", "payment")):
+            return "billing_specialist"
+        if any(w in t for w in ("order", "shipping", "delivery", "track", "package")):
+            return "order_specialist"
+        if any(w in t for w in ("login", "log in", "password", "error", "bug", "crash", "account")):
+            return "tech_specialist"
+        return "general_support"
 
     def _order_agent_node(self, state: CustomerSupportState) -> CustomerSupportState:
         if not state.get("customer_id"):
@@ -280,7 +301,9 @@ class CustomerSupportAgent:
     def _billing_agent_node(self, state: CustomerSupportState) -> CustomerSupportState:
         msg = state["messages"][-1].content.lower()
         if any(w in msg for w in ["refund", "charge", "dispute"]):
-            return {**state, "active_agent": "escalate"}
+            # billing_agent -> END is a fixed edge, so hand off to the
+            # escalation node directly (otherwise the user gets no reply).
+            return self._escalation_node({**state, "active_agent": "escalate"})
         return {**state, "messages": [AIMessage(content="Billing Specialist here. All your payments are up to date!")]}
 
     def _general_support_node(self, state: CustomerSupportState) -> CustomerSupportState:
@@ -318,7 +341,8 @@ class CustomerSupportAgent:
             return
         match = re.search(r'[\w\.-]+@[\w\.-]+', message)
         if match:
-            customer = self.db.get_customer_by_email(match.group())
+            # Drop trailing punctuation ("...alice@example.com. Where is...")
+            customer = self.db.get_customer_by_email(match.group().rstrip('.,;:!?').lower())
             if customer:
                 logger.info(f"Identified customer: {customer['name']} ({customer['tier']})")
                 state.update(customer_id=customer["customer_id"],
