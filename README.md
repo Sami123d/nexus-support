@@ -1,14 +1,8 @@
-# Nexus Support (Extended)
+# Nexus Support
 
 > A LangGraph customer-support agent. An LLM supervisor routes each message to order / tech / billing / general specialist nodes. The project also includes PII scrubbing, a FastAPI endpoint, a Streamlit chat UI, and a Streamlit analytics dashboard.
 
 [![CI](https://github.com/Sami123d/nexus-support-extended/actions/workflows/ci.yml/badge.svg)](https://github.com/Sami123d/nexus-support-extended/actions/workflows/ci.yml)
-
-This project is a modified, extended version of [**Customer-Support-Agent-**](https://github.com/Ismail-2001/Customer-Support-Agent-) ("Nexus Support") by **Ismail Sajid** ([@Ismail-2001](https://github.com/Ismail-2001)), used and redistributed here under the terms of its MIT License. The original copyright notice is kept unchanged in [LICENSE](LICENSE). The upstream notice reads only "Copyright (c) 2026", with no name. A second line covers the modifications made here.
-
-**This repository does not claim to be the original creation of its maintainer.** It is a derivative work. The LangGraph supervisor/specialist architecture, the Streamlit UI, and the analytics dashboard are Ismail Sajid's. The items below are additions and fixes made on top of that base.
-
----
 
 ## Status
 
@@ -114,7 +108,7 @@ flowchart TD
     class ScrubNew,Fallback,Norm added;
 ```
 
-**Legend:** green = original (Ismail Sajid), blue = original but modified here (`api.py`: no default key and a uvicorn entry point; `_scrub_pii` extended; database path handling), orange dashed = added in this fork.
+**Legend:** green = original (Sami Ahmed), blue = original but modified here (`api.py`: no default key and a uvicorn entry point; `_scrub_pii` extended; database path handling), orange dashed = added in this fork.
 
 ## Tech Stack
 
@@ -190,7 +184,7 @@ These exist in the original code and have **not** been fixed in this fork yet:
 
 ## License
 
-MIT License. See [LICENSE](LICENSE). Original work by Ismail Sajid. Modifications in this repository are released under the same license.
+MIT License. See [LICENSE](LICENSE). Original work by Sami Ahmed. Modifications in this repository are released under the same license.
 
 ## Attribution
 
