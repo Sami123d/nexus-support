@@ -51,13 +51,18 @@ class DualModelProvider:
                 openai_api_base="https://generativelanguage.googleapis.com/v1beta/openai/",
                 max_tokens=2000
             )
-        else:
+        elif os.getenv("DEEPSEEK_API_KEY"):
             self.primary = ChatOpenAI(
                 model=os.getenv("PRIMARY_MODEL", "deepseek-chat"),
                 openai_api_key=os.getenv("DEEPSEEK_API_KEY"),
                 openai_api_base="https://api.deepseek.com/v1",
                 max_tokens=2000
             )
+        else:
+            # No key: don't crash at import time (the UI shows a setup warning
+            # and routing falls back to the general specialist).
+            self.primary = None
+            logger.error("No LLM key set: add GEMINI_API_KEY (or DEEPSEEK_API_KEY) to the environment / Streamlit secrets.")
 
         fallback_key = os.getenv("FALLBACK_API_KEY")
         fallback_base = os.getenv("FALLBACK_API_BASE")  # None => official OpenAI endpoint
@@ -75,7 +80,13 @@ class DualModelProvider:
                 "primary LLM errors will propagate instead of failing over."
             )
 
+    @property
+    def configured(self) -> bool:
+        return self.primary is not None
+
     def invoke(self, prompt: Any) -> Any:
+        if self.primary is None:
+            raise RuntimeError("No LLM API key configured (set GEMINI_API_KEY).")
         try:
             return self.primary.invoke(prompt)
         except Exception as e:
@@ -87,6 +98,11 @@ class DualModelProvider:
     def with_structured_output(self, schema: Any):
         # function_calling works across OpenAI-compatible providers
         # (DeepSeek and Gemini don't all support strict json_schema).
+        if self.primary is None:
+            class _Unconfigured:
+                def invoke(self_inner, prompt: Any) -> Any:
+                    raise RuntimeError("No LLM API key configured (set GEMINI_API_KEY).")
+            return _Unconfigured()
         primary_chain = self.primary.with_structured_output(schema, method="function_calling")
         secondary_chain = (self.secondary.with_structured_output(schema, method="function_calling")
                            if self.secondary else None)
