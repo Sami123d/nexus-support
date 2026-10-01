@@ -41,12 +41,23 @@ class DualModelProvider:
     loud rather than silently pretending to have resiliency).
     """
     def __init__(self):
-        self.primary = ChatOpenAI(
-            model=os.getenv("PRIMARY_MODEL", "deepseek-chat"),
-            openai_api_key=os.getenv("DEEPSEEK_API_KEY"),
-            openai_api_base="https://api.deepseek.com/v1",
-            max_tokens=2000
-        )
+        # Primary provider: Gemini (free tier, via its OpenAI-compatible
+        # endpoint) when GEMINI_API_KEY is set, otherwise DeepSeek.
+        gemini_key = os.getenv("GEMINI_API_KEY")
+        if gemini_key:
+            self.primary = ChatOpenAI(
+                model=os.getenv("PRIMARY_MODEL", "gemini-2.5-flash"),
+                openai_api_key=gemini_key,
+                openai_api_base="https://generativelanguage.googleapis.com/v1beta/openai/",
+                max_tokens=2000
+            )
+        else:
+            self.primary = ChatOpenAI(
+                model=os.getenv("PRIMARY_MODEL", "deepseek-chat"),
+                openai_api_key=os.getenv("DEEPSEEK_API_KEY"),
+                openai_api_base="https://api.deepseek.com/v1",
+                max_tokens=2000
+            )
 
         fallback_key = os.getenv("FALLBACK_API_KEY")
         fallback_base = os.getenv("FALLBACK_API_BASE")  # None => official OpenAI endpoint
@@ -74,8 +85,11 @@ class DualModelProvider:
             return self.secondary.invoke(prompt)
 
     def with_structured_output(self, schema: Any):
-        primary_chain = self.primary.with_structured_output(schema)
-        secondary_chain = self.secondary.with_structured_output(schema) if self.secondary else None
+        # function_calling works across OpenAI-compatible providers
+        # (DeepSeek and Gemini don't all support strict json_schema).
+        primary_chain = self.primary.with_structured_output(schema, method="function_calling")
+        secondary_chain = (self.secondary.with_structured_output(schema, method="function_calling")
+                           if self.secondary else None)
 
         class _FallbackChain:
             def invoke(self_inner, prompt: Any) -> Any:
@@ -279,7 +293,24 @@ class CustomerSupportAgent:
                 "customer_id": None, "customer_name": None, "customer_tier": "standard", "active_agent": "supervisor", 
                 "resolved": False, "requires_escalation": False, "is_human_takeover": False, "total_tokens": 0}
 
+    def _identify_from_raw(self, state: dict, message: str) -> None:
+        """Look up the customer from the raw message *before* PII scrubbing.
+        The scrubber replaces emails with [EMAIL_MASKED], so the identify node
+        never sees the address; the lookup happens here and only the masked
+        text goes into the conversation / LLM prompt."""
+        if state.get("customer_id"):
+            return
+        match = re.search(r'[\w\.-]+@[\w\.-]+', message)
+        if match:
+            customer = self.db.get_customer_by_email(match.group())
+            if customer:
+                logger.info(f"Identified customer: {customer['name']} ({customer['tier']})")
+                state.update(customer_id=customer["customer_id"],
+                             customer_name=customer["name"],
+                             customer_tier=customer["tier"])
+
     def send_message(self, state: dict, message: str) -> dict:
+        self._identify_from_raw(state, message)
         # PII Scrubbing on ingestion for input security
         safe_msg = self._scrub_pii(message)
         state["messages"].append(HumanMessage(content=safe_msg))
@@ -288,6 +319,7 @@ class CustomerSupportAgent:
         return self.graph.invoke(state)
 
     def stream_message(self, state: dict, message: str):
+        self._identify_from_raw(state, message)
         safe_msg = self._scrub_pii(message)
         state["messages"].append(HumanMessage(content=safe_msg))
         state["total_tokens"] = state.get("total_tokens", 0) + (len(safe_msg.split()) * 2 + 100)
