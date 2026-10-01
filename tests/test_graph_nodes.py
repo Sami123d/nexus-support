@@ -134,3 +134,22 @@ def test_supervisor_ends_immediately_during_human_takeover(temp_db_path):
     result = agent._supervisor_node(state)
 
     assert result["active_agent"] == "end"
+
+
+def test_customer_identified_before_email_is_masked(monkeypatch):
+    """The email is scrubbed from the stored message, but the customer
+    lookup must still happen on the raw text."""
+    import customer_support_agent as csa
+    agent = csa.CustomerSupportAgent.__new__(csa.CustomerSupportAgent)
+
+    class FakeDB:
+        def get_customer_by_email(self, email):
+            assert email == "alice@example.com"
+            return {"customer_id": "C1", "name": "Alice Johnson", "tier": "premium"}
+
+    agent.db = FakeDB()
+    state = {"customer_id": None, "customer_tier": "standard"}
+    agent._identify_from_raw(state, "My email is alice@example.com")
+    assert state["customer_id"] == "C1"
+    assert state["customer_tier"] == "premium"
+    assert "[EMAIL_MASKED]" in agent._scrub_pii("My email is alice@example.com")
