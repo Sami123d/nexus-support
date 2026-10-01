@@ -5,6 +5,15 @@ import time
 import os
 import re
 from datetime import datetime
+# Streamlit Cloud: copy keys from st.secrets into the environment *before*
+# the agent module reads them at import time.
+for _k in ("GEMINI_API_KEY", "DEEPSEEK_API_KEY", "FALLBACK_API_KEY", "PRIMARY_MODEL"):
+    try:
+        if _k in st.secrets and not os.getenv(_k):
+            os.environ[_k] = str(st.secrets[_k]).strip()
+    except Exception:
+        pass  # no secrets.toml locally
+
 from customer_support_agent import CustomerSupportAgent, llm_provider
 from langchain_core.messages import HumanMessage, AIMessage
 
