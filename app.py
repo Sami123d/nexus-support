@@ -5,7 +5,7 @@ import time
 import os
 import re
 from datetime import datetime
-from customer_support_agent import CustomerSupportAgent
+from customer_support_agent import CustomerSupportAgent, llm_provider
 from langchain_core.messages import HumanMessage, AIMessage
 
 # --- PAGE CONFIG ---
@@ -215,11 +215,20 @@ with st.sidebar:
         """, unsafe_allow_html=True)
         
         st.markdown("<h4 style='color:#f8fafc; font-size:0.9rem; margin-top:2rem; margin-bottom:1rem;'>INFRASTRUCTURE</h4>", unsafe_allow_html=True)
-        st.markdown('<div class="status-badge status-online" style="width:100%; margin-bottom:0.5rem;">Engine: DeepSeek-v3</div>', unsafe_allow_html=True)
-        st.markdown('<div class="status-badge status-online" style="width:100%; margin-bottom:0.5rem;">DB: Postgres/WAL</div>', unsafe_allow_html=True)
-        st.markdown('<div class="status-badge status-online" style="width:100%;">Security: AES-256 Masking</div>', unsafe_allow_html=True)
+        engine = getattr(llm_provider.primary, "model_name", "LLM")
+        db_kind = "Postgres" if os.getenv("DATABASE_URL", "").startswith("postgres") else "SQLite"
+        st.markdown(f'<div class="status-badge status-online" style="width:100%; margin-bottom:0.5rem;">Engine: {engine}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="status-badge status-online" style="width:100%; margin-bottom:0.5rem;">DB: {db_kind}</div>', unsafe_allow_html=True)
+        st.markdown('<div class="status-badge status-online" style="width:100%;">Security: PII Masking</div>', unsafe_allow_html=True)
 
-    st.markdown("<div style='margin-top:2rem;'></div>", unsafe_allow_html=True)
+    st.markdown("<h4 style='color:#f8fafc; font-size:0.9rem; margin-top:2rem;'>TRY THE DEMO</h4>", unsafe_allow_html=True)
+    st.markdown(
+        "- `My email is alice@example.com`\n"
+        "- `Where is my order?`\n"
+        "- `I can't log in to my account`\n"
+        "- `I want a refund for a double charge`"
+    )
+    st.markdown("<div style='margin-top:1rem;'></div>", unsafe_allow_html=True)
     if st.button("RESET SESSION", use_container_width=True, type="secondary"):
         st.session_state.state = None
         st.session_state.history = []
