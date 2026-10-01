@@ -60,3 +60,19 @@ def test_with_structured_output_falls_back(monkeypatch):
     result = chain.invoke("hello")
 
     assert result == {"ok": True}
+
+
+def test_provider_without_any_key_does_not_crash(monkeypatch):
+    """With no key the module must still import (the Streamlit UI shows a
+    setup warning instead of a traceback)."""
+    import pytest
+    import customer_support_agent as csa
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    monkeypatch.delenv("FALLBACK_API_KEY", raising=False)
+    provider = csa.DualModelProvider()
+    assert provider.configured is False
+    with pytest.raises(RuntimeError, match="GEMINI_API_KEY"):
+        provider.invoke("hi")
+    with pytest.raises(RuntimeError, match="GEMINI_API_KEY"):
+        provider.with_structured_output(csa.RouterDecision).invoke("hi")
