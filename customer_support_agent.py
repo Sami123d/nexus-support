@@ -46,7 +46,7 @@ class DualModelProvider:
         gemini_key = os.getenv("GEMINI_API_KEY")
         if gemini_key:
             self.primary = ChatOpenAI(
-                model=os.getenv("PRIMARY_MODEL", "gemini-2.5-flash"),
+                model=os.getenv("PRIMARY_MODEL", "gemini-flash-latest"),
                 openai_api_key=gemini_key,
                 openai_api_base="https://generativelanguage.googleapis.com/v1beta/openai/",
                 max_tokens=2000
