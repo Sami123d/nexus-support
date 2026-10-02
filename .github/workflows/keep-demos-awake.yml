@@ -1,0 +1,57 @@
+# Streamlit Community Cloud puts apps to sleep after 12 hours without traffic.
+# This opens both public demos in a real (headless) browser every 6 hours and
+# clicks the "wake up" button if an app is asleep, so visitors never see the
+# sleep page. Free on public repos. Run it by hand from the Actions tab too.
+name: Keep demos awake
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+jobs:
+  wake:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install Playwright
+        run: |
+          pip install playwright==1.47.0
+          python -m playwright install --with-deps chromium
+      - name: Visit demos
+        env:
+          DEMO_URLS: >-
+            https://nexus-support-extended-hdwjovc6jd65a6ljnhbxm4.streamlit.app/
+            https://ai-job-application-agent-sami.streamlit.app/
+        run: |
+          python - <<'PY'
+          import os, re, sys
+          from playwright.sync_api import sync_playwright
+
+          failed = False
+          with sync_playwright() as p:
+              browser = p.chromium.launch()
+              for url in os.environ["DEMO_URLS"].split():
+                  page = browser.new_page()
+                  try:
+                      page.goto(url, wait_until="domcontentloaded", timeout=90_000)
+                      page.wait_for_timeout(15_000)
+                      wake = page.get_by_role("button", name=re.compile("get this app back up", re.I))
+                      if wake.count():
+                          print(f"{url}: asleep, waking it up")
+                          wake.first.click()
+                          page.wait_for_timeout(90_000)
+                      else:
+                          print(f"{url}: awake")
+                      page.wait_for_timeout(10_000)  # keep the session open briefly
+                  except Exception as e:
+                      failed = True
+                      print(f"{url}: ERROR {e}")
+                  finally:
+                      page.close()
+              browser.close()
+          sys.exit(1 if failed else 0)
+          PY
