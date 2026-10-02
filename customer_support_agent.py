@@ -328,7 +328,7 @@ class CustomerSupportAgent:
 
     # --- PUBLIC API ---
     def start_conversation(self) -> dict:
-        return {"messages": [AIMessage(content="Welcome to Enterprise Support. How can I help today?")], 
+        return {"messages": [AIMessage(content="Hi, I'm Nexus, your support assistant. Share your email and ask me about an order, a login problem or a billing issue.")], 
                 "customer_id": None, "customer_name": None, "customer_tier": "standard", "active_agent": "supervisor", 
                 "resolved": False, "requires_escalation": False, "is_human_takeover": False, "total_tokens": 0}
 
